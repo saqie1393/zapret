@@ -1,0 +1,73 @@
+name: Build TPWS Binaries for Huawei Devices
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-arm-linux-gnueabi \
+            binutils-arm-linux-gnueabi \
+            make
+          
+      - name: Build for Hi6921/Hi6930 (VFPv3, Android API 19)
+        run: |
+          echo "Building for Hi6921/Hi6930 (VFPv3, API 19)..."
+          make clean
+          make CC=arm-linux-gnueabi-gcc \
+            CFLAGS="-D__ANDROID_API__=19 -march=armv7-a -mfloat-abi=softfp -mfpu=vfpv3-d16 -mthumb"
+          
+          # Create output directory
+          mkdir -p binaries
+          if [ -f binaries/my/tpws ]; then
+            mv binaries/my/tpws binaries/tpws_vfp3-api19
+            echo "✅ Built: tpws_vfp3-api19"
+          else
+            echo "❌ tpws_vfp3-api19 not found"
+            exit 1
+          fi
+          
+      - name: Build for Hi6920 (no VFP, Android API 9)
+        run: |
+          echo "Building for Hi6920 (no VFP, API 9)..."
+          make clean
+          make CC=arm-linux-gnueabi-gcc \
+            CFLAGS="-D__ANDROID_API__=9 -march=armv7-a -mfloat-abi=soft -mthumb"
+          
+          if [ -f binaries/my/tpws ]; then
+            mv binaries/my/tpws binaries/tpws_novfp_api9
+            echo "✅ Built: tpws_novfp_api9"
+          else
+            echo "❌ tpws_novfp_api9 not found"
+            exit 1
+          fi
+          
+      - name: List all built binaries
+        run: |
+          echo "=== Built Binaries ==="
+          ls -la binaries/
+          echo ""
+          echo "=== File Information ==="
+          file binaries/*
+          
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tpws-binaries
+          path: |
+            binaries/tpws_vfp3-api19
+            binaries/tpws_novfp_api9
+          if-no-files-found: error
